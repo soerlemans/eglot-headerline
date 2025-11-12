@@ -37,7 +37,7 @@
 
 
 ;;; Code:
-(dolist (pkg '(eglot jsonrpc))
+(dolist (pkg '(eglot jsonrpc cl-lib))
 	(require pkg))
 
 ;;; Variables:
@@ -100,7 +100,6 @@
 
 (defun eglot-headerline--propertize (str kind)
 	"Utility function for fixing the FACE and properly propertizing a string."
-	(interactive)
 	(let* ((face (eglot-headerline--symbol-kind-to-face kind))
 				 (hl-face (eglot-headerline--swap-face face)))
 		(propertize str 'face hl-face)
@@ -108,7 +107,6 @@
 
 (defun eglot-headerline--documentSymbol ()
   "Return the list of symbols from the current buffer via Eglot."
-	(interactive)
 	(let ((server (eglot--current-server-or-lose)))
 		(eglot--request
 		 server
@@ -159,7 +157,6 @@
 
 (defun eglot-headerline--breadcrumb ()
 	"Compute the breadcrumb for the current context, of POINT."
-	(interactive)
 	(when-let ((symbols (eglot-headerline--documentSymbol)))
 		(let* ((path (eglot-headerline--symbol-at-point symbols))
 					 (spacer-prop (propertize " " 'display '(space :width 1.3))))
@@ -167,7 +164,7 @@
 			)))
 
 (defun eglot-headerline--hook ()
-	"Hooking function to add and remove.."
+	"Hooking function to add and remove."
 	(setq-local header-line-format (eglot-headerline--breadcrumb)))
 
 (defun enable-eglot-headerline ()
@@ -193,6 +190,7 @@
 	(remove-hook 'post-command-hook #'eglot-headerline--hook t)
 	(setq-local header-line-format '())
 
+	;; Neatly reset the face.
 	(set-face-attribute 'header-line nil
 											:foreground 'unspecified
 											:background 'unspecified
