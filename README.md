@@ -14,4 +14,4 @@ Install and hook into relevant modes using:
 ```
 
 ## Demo
-![demo.gif](https://github.com/soerlemans/eglot-header-line/raw/refs/heads/main/assets/demo.mp4)
+![demo.gif](https://github.com/soerlemans/eglot-header-line/raw/refs/heads/main/assets/demo.gif)
