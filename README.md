@@ -14,4 +14,4 @@ Install and hook into relevant modes using:
 ```
 
 ## Demo
-<video src="https://github.com/soerlemans/eglot-header-line/raw/refs/heads/main/assets/demo.mp4" width="320" height="240" controls></video>
+![demo.gif](https://github.com/soerlemans/eglot-header-line/raw/refs/heads/main/assets/demo.mp4)
