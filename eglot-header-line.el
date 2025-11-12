@@ -41,6 +41,8 @@
 	(require pkg))
 
 ;;; Variables:
+(defvar-local eglot-header-line--segment '(:eval (eglot-header-line--breadcrumb))
+  "My package's header-line segment for this buffer.")
 
 ;;; Functions:
 ;; Symbol kind specification as of writing.
@@ -117,7 +119,6 @@
 
 (defun eglot-header-line--symbol-at-point (symbols)
 	"Return list of symbol names containing point, using SYMBOLS tree."
-	(interactive)
 	(let (path '())
 		(cl-labels
 				((walk (symbols-inner)
@@ -160,69 +161,73 @@
 	(when-let ((symbols (eglot-header-line--documentSymbol)))
 		(let* ((path (eglot-header-line--symbol-at-point symbols))
 					 (spacer-prop (propertize " " 'display '(space :width 1.3))))
-			(list spacer-prop path) ;; We add a spacer for subjective beauty.
+			(list spacer-prop path spacer-prop) ;; We add spacers around it to make it look better.
 			)))
 
-;; TODO: Implement not overwriting existing headerline..
-(defun eglot-header-line--add ()
-	(interactive)
-	(setq-local header-line-format
-							'((:eval (eglot-header-line--breadcrumb)) header-line-format))
-	)
+(defun eglot-header-line--add-segment ()
+  "Add eglot header-line segment if it's not already present."
+  (unless (member eglot-header-line--segment header-line-format)
+    (setq header-line-format
+          (append (list eglot-header-line--segment)
+                  (if (listp header-line-format)
+                      header-line-format
+                    (list header-line-format))))))
 
-(defun eglot-header-line--remove ()
-	)
-
-(defun eglot-header-line--hook ()
-	"Hooking function to add and remove."
-	;; (setq-local header-line-format (eglot-header-line--breadcrumb))
-	(eglot-header-line--add)
-
-	)
-
-(defun enable-eglot-header-line ()
-	"Enable the eglot headerline."
-	(interactive)
-	(add-hook 'post-command-hook #'eglot-header-line--hook nil t)
-
-	;; Invert default header-line look.
-	;; Headerline foreground and background are default inverted.
-	(let ((fg (face-foreground 'default))
-				(bg (face-background 'default)))
-		(set-face-attribute 'header-line nil
-												:foreground bg
-												:background fg
-												:height 1.0
-												:box  `(:line-width 1 :color ,fg :style nil)
-												))
-	)
-
-(defun disable-eglot-header-line ()
-	"Disable the eglot headerline."
-	(interactive)
-	(remove-hook 'post-command-hook #'eglot-header-line--hook t)
-	(setq-local header-line-format '())
-
-	;; Neatly reset the face.
-	(set-face-attribute 'header-line nil
-											:foreground 'unspecified
-											:background 'unspecified
-											:weight 'unspecified
-											:box 'unspecified
-											:underline 'unspecified
-											:slant 'unspecified
-											:height 'unspecified
-											:font 'unspecified)
-	)
+(defun eglot-header-line--remove-segment ()
+  "Remove eglot header-line segment if present."
+  (setq header-line-format
+        (delq eglot-header-line--segment header-line-format)))
 
 ;;; Define minor mode:
 (define-minor-mode eglot-header-line-mode
 	"Toggle the highlighting of the current namespace/class/function in the headerline."
 	:lighter "Toggle the highlighting of the current function in the header-line."
+  :init-value nil
 	(if eglot-header-line-mode
-			(enable-eglot-header-line)
-		(disable-eglot-header-line)
+			(eglot-header-line-enable)
+		(eglot-header-line-disable)
 		))
+
+(defun eglot-header-line-enable ()
+	"Enable the eglot headerline."
+	(interactive)
+  (unless eglot-header-line-mode
+		(eglot-header-line--add-segment)
+
+		;; Invert default header-line look.
+		;; Headerline foreground and background are default inverted.
+		(let ((fg (face-foreground 'default))
+					(bg (face-background 'default)))
+			(set-face-attribute 'header-line nil
+													:foreground bg
+													:background fg
+													:height 1.0
+													:box  `(:line-width 1 :color ,fg :style nil)
+													))
+
+		(setq eglot-header-line-mode t)
+		))
+
+(defun eglot-header-line-disable ()
+	"Disable the eglot headerline."
+	(interactive)
+  (when eglot-header-line-mode
+		(eglot-header-line--remove-segment)
+
+		;; Neatly reset the face.
+		(set-face-attribute 'header-line nil
+												:foreground 'unspecified
+												:background 'unspecified
+												:weight 'unspecified
+												:box 'unspecified
+												:underline 'unspecified
+												:slant 'unspecified
+												:height 'unspecified
+												:font 'unspecified)
+
+		(setq eglot-header-line-mode nil)
+		))
+
 
 (provide 'eglot-header-line-mode)
 ;;; eglot-header-line.el ends here
