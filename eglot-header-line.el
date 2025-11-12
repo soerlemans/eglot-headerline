@@ -42,7 +42,14 @@
 
 ;;; Variables:
 (defvar-local eglot-header-line--segment '(:eval (eglot-header-line--breadcrumb))
-  "My package's header-line segment for this buffer.")
+  "Eglot header-line segment.")
+
+(defvar eglot-header-line--mode-separators
+  '((c++-mode . "::")
+    (rust-mode . "::")
+    (go-mode . ".")
+		(python-mode . "."))
+  "Alist mapping major modes to header-line entity separators.")
 
 ;;; Functions:
 ;; Symbol kind specification as of writing.
@@ -107,6 +114,12 @@
 		(propertize str 'face hl-face)
 		))
 
+(defun eglot-header-line--separator-for-current-mode ()
+  "Return the separator string for the current major mode."
+  (or (cdr (assoc major-mode eglot-header-line--mode-separators))
+			"." ;; Default separator if not found.
+			))
+
 (defun eglot-header-line--documentSymbol ()
   "Return the list of symbols from the current buffer via Eglot."
 	(let ((server (eglot--current-server-or-lose)))
@@ -133,8 +146,9 @@
 											 ;; Add the symbols name if our point is between its start and end.
 											 (let* ((face (eglot-header-line--symbol-kind-to-face kind))
 															(name-prop (eglot-header-line--propertize name kind))
-															(sep-prop (eglot-header-line--propertize "::" t))
-															(spacer-prop (propertize " " 'display '(space :width 0.65))))
+															(sep (eglot-header-line--separator-for-current-mode))
+															(sep-prop (eglot-header-line--propertize sep t))
+															(detail-spacer-prop (propertize " " 'display '(space :width 0.65))))
 
 												 ;; Necessary to only separators spacers inbetween items.
 												 (when path
@@ -145,9 +159,9 @@
 														 (walk children) ; True.
 													 (when-let* ((detail (plist-get symbol :detail)) ; False.
 																			 (detail-prop (eglot-header-line--propertize detail t)))
-														 (push spacer-prop path)
+														 (push detail-spacer-prop path)
 														 (push "|" path)
-														 (push spacer-prop path)
+														 (push detail-spacer-prop path)
 														 (push detail-prop path))
 													 )))
 										 ))
