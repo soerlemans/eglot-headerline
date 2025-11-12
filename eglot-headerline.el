@@ -41,6 +41,8 @@
 	(require pkg))
 
 ;;; Variables:
+
+;;; Functions:
 ;; Symbol kind specification as of writing.
 ;; See symbol kind at:
 ;; https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_documentSymbol).
@@ -73,55 +75,37 @@
 ;;	 export const Operator = 25;
 ;;	 export const TypeParameter = 26;|
 ;; }
-(unless (boundp '+symbol-kind-init+)
-	;; Enum spec.
-	(defconst +symbol-kind-namespace+ 3)
-	(defconst +symbol-kind-class+ 5)
-	(defconst +symbol-kind-method+ 6)
-	(defconst +symbol-kind-enum+ 10)
-	(defconst +symbol-kind-interface+ 11)
-	(defconst +symbol-kind-function+ 12)
-	(defconst +symbol-kind-struct+ 23)
-
-	(defconst +symbol-kind-init+ t))
-
 (defun eglot-headerline--symbol-kind-to-face (kind)
 	"Match a given symbol kind to a font lock face."
-	(interactive)
-	(cl-case kind
-		(+symbol-kind-namespace+ 'font-lock-constant-face)
-		(+symbol-kind-class+ 'font-lock-type-face)
-		(+symbol-kind-method+ 'font-lock-function-name-face)
-		(+symbol-kind-enum+ 'font-lock-type-face)
-		(+symbol-kind-interface+ 'font-lock-type-face)
-		(+symbol-kind-function 'font-lock-function-name-face)
-		(+symbol-kind-struct+ 'font-lock-type-face)
+	(pcase kind
+		(3  'font-lock-constant-face)
+		(5  'font-lock-type-face)
+		(6  'font-lock-function-name-face)
+		(10 'font-lock-type-face)
+		(11 'font-lock-type-face)
+		(12 'font-lock-function-name-face)
+		(23 'font-lock-type-face)
 
 		;; (t 'font-lock-keyword-face) ; Default
-		(t 'default) ; Default
+		(_ 'default) ; Default
 		))
 
 (defun eglot-headerline--swap-face (face)
   "Return a face spec like FACE but with foreground and background swapped."
-	(interactive)
   (let ((fg (face-foreground face nil 'default))
-        (bg (face-background face nil 'default)))
-    ;; `(:foreground ,bg :background ,fg :inherit ,face) ; This breaks it but is the way we should approach this.
-    `(:foreground ,bg :background ,fg)
+        (bg (face-background face nil 'default))
+				(bold (face-bold-p face)))
+    `(:foreground ,bg :background ,fg, :weight ,bold)
 		))
 
 (defun eglot-headerline--propertize (str kind)
-	"TODO: Document."
+	"Utility function for fixing the FACE and properly propertizing a string."
 	(interactive)
 	(let* ((face (eglot-headerline--symbol-kind-to-face kind))
 				 (hl-face (eglot-headerline--swap-face face)))
-
-		(message "kind: %S" (eglot-headerline--symbol-kind-to-face kind))
-
 		(propertize str 'face hl-face)
 		))
 
-;;; Functions:
 (defun eglot-headerline--documentSymbol ()
   "Return the list of symbols from the current buffer via Eglot."
 	(interactive)
@@ -136,7 +120,7 @@
 (defun eglot-headerline--symbol-at-point (symbols)
 	"Return list of symbol names containing point, using SYMBOLS tree."
 	(interactive)
-	(let (path)
+	(let (path '())
 		(cl-labels
 				((walk (symbols-inner)
 					 (mapc (lambda (symbol)
@@ -145,36 +129,42 @@
 													(end   (eglot--lsp-position-to-point (plist-get range :end)))
 													(name (plist-get symbol :name))
 													(children (plist-get symbol :children))
-													(detail (plist-get symbol :detail))
 													(kind (plist-get symbol :kind)))
 										 (when (and (>= (point) start) (<= (point) end))
 											 ;; Add the symbols name if our point is between its start and end.
 											 (let* ((face (eglot-headerline--symbol-kind-to-face kind))
 															(name-prop (eglot-headerline--propertize name kind))
 															(sep-prop (eglot-headerline--propertize "::" t))
-															;; (detail-prop (eglot-headerline--propertize detail t))
-															(spacer-prop (eglot-headerline--propertize " # " t)))
+															(spacer-prop (propertize " " 'display '(space :width 0.65))))
+
+												 ;; Necessary to only separators spacers inbetween items.
+												 (when path
+													 (push sep-prop path))
+
 												 (push name-prop path)
 												 (if children
-														 (progn ; True.
-															 (push sep-prop path)
-															 (walk children))
-													 (when-let ((detail-prop (eglot-headerline--propertize detail t))) ; False.
+														 (walk children) ; True.
+													 (when-let* ((detail (plist-get symbol :detail)) ; False.
+																			 (detail-prop (eglot-headerline--propertize detail t)))
 														 (push spacer-prop path)
-														 (push detail path))
+														 (push "|" path)
+														 (push spacer-prop path)
+														 (push detail-prop path))
 													 )))
 										 ))
 								 symbols-inner)))
 			(walk symbols))
-		(nreverse path)))
+		(nreverse path)
+		))
 
 (defun eglot-headerline--breadcrumb ()
 	"Compute the breadcrumb for the current context, of POINT."
 	(interactive)
 	(when-let ((symbols (eglot-headerline--documentSymbol)))
-		(let* ((path (eglot-headerline--symbol-at-point symbols)))
-			path)
-		))
+		(let* ((path (eglot-headerline--symbol-at-point symbols))
+					 (spacer-prop (propertize " " 'display '(space :width 1.3))))
+			(list spacer-prop path)
+			)))
 
 (defun eglot-headerline--hook ()
 	"Hooking function to add and remove.."
@@ -183,13 +173,36 @@
 (defun enable-eglot-headerline ()
 	"Enable the eglot headerline."
 	(interactive)
-	(add-hook 'post-command-hook #'eglot-headerline--hook nil t))
+	(add-hook 'post-command-hook #'eglot-headerline--hook nil t)
+
+	;; Invert default header-line look.
+	;; Headerline foreground and background are default inverted.
+	(let ((fg (face-foreground 'default))
+				(bg (face-background 'default)))
+		(set-face-attribute 'header-line nil
+												:foreground bg
+												:background fg
+												:height 1.0
+												:box  `(:line-width 1 :color ,fg :style nil)
+												))
+	)
 
 (defun disable-eglot-headerline ()
 	"Disable the eglot headerline."
 	(interactive)
 	(remove-hook 'post-command-hook #'eglot-headerline--hook t)
-	(setq-local header-line-format '()))
+	(setq-local header-line-format '())
+
+	(set-face-attribute 'header-line nil
+											:foreground 'unspecified
+											:background 'unspecified
+											:weight 'unspecified
+											:box 'unspecified
+											:underline 'unspecified
+											:slant 'unspecified
+											:height 'unspecified
+											:font 'unspecified)
+	)
 
 ;;; Define minor mode:
 (define-minor-mode eglot-headerline-mode
